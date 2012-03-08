@@ -1,24 +1,21 @@
 var fs = require('fs');
-var httpWrapper = require('./httpWrapper');
-var functions = require('./functions');
-var mailChimpWrapper = require('./mailChimpWrapper');
+var httpWrapper = require('./lib/httpWrapper');
+var functions = require('./lib/functions');
 
-var approvedList = [];
 var settings = {
 	"articleCache": {
 		"url": "http://localhost:{port}/article/",
 		"ports": [ "8878", "8879" ]
 	}
 };
+
+fs.mkdir("./cache", 0775, function(e) {});
+fs.mkdir("./cache2", 0775, function(e) {}); 
+
 var cacheTimeout = 900000; // 15 minutes
 var cache2File = require('../node_modules/cache2file'),
 	cache = new cache2File("/flockworks/flockweb/cache/", cacheTimeout /* Timeout in milliseconds */), // Generate a new cache
 	cache2 = new cache2File("/flockworks/flockweb/cache2/", 21600000); // 6 hours
-
-//console.log(settings.mongodb[0]);
-
-/*var wufoo = require('../../node/article_cache/lib/wufoo');
-wufoo.setAuth('B9W0-Y4K9-61PX-3BYE','footastic'); */
 
 var fw = {
 	"uri": "http://127.0.0.1:8183/api/",
@@ -665,89 +662,6 @@ function getEndPoint( type, purpose, urlVars ) {
     //console.log( type + "." + purpose + " > " + endPoint);
     
     return endPoint;
-}
-
-exports.checkApproved = function( emailAddress ) {
-	return checkApproved(emailAddress);
-}
-
-function checkApproved(emailAddress) {
-	if (emailAddress.indexOf('@kudosknowledge.com')>0)
-		return true;
-		
-	for(var i=0,user; user = approvedList[i]; i++) {
-		//console.log(user.email.toLowerCase() + '' + emailAddress.toLowerCase());
-    	if(user.email.toLowerCase()==emailAddress.toLowerCase()) {
-    		return true;
-    	}	
-	}
-	
-	return false;
-}
-
-function loadUserList() {
-	mailChimpWrapper.exportApiList({ id : '78ddcc8c99' }, function (data) {
-
-	    if (data.error)
-	        console.log('Error: '+data.error+' ('+data.code+')');
-	    else {
-	    	
-	        var users = [];
-	        fieldList = data[0];
-	        fieldNumber = 0;
-	        
-	        for(var i=1,field; field = fieldList[i]; i++) {
-	        	if(field=='Enliten Private Beta User') {
-	        		//mailChimpField( 'Field' + i, true);
-	        		betaUserFieldNumber = i;
-	        	}
-
-				if(field=='Enliten Private Beta Invitation'){
-	        		//mailChimpField( 'Field' + i, true);
-	        		betaPrivateFieldNumber = i;
-	        	}
-					
-			}
-	        
-	        for(var i=1,uchannelListser; user = data[i]; i++) {
-	        	if(user[betaUserFieldNumber]=='Yes' || user[betaPrivateFieldNumber]=='Yes')
-					users.push({ email: user[2], invited: user[betaPrivateFieldNumber]=='Yes', approved: user[betaUserFieldNumber]=='Yes' }); 
-			}
-	        
-	        fs.writeFile('./userList.json', JSON.stringify(users), function (err) {
-			  if (err) console.log('Error saving userList.json!');
-			  console.log('It\'s saved!');
-			});
-			
-			approvedList = users;
-	    }
-	    	
-	});
-
-}
-
-function updateUserList() {
-	try	{
-		uList = fs.readFileSync("./userList.json",'utf8');
-		
-		approvedList = JSON.parse(uList);
-	}catch(e) {
-		approvedList = [];
-	}
-}
-
-function readCacheConf()
-{
-	try
-	{
-		return JSON.parse(fs.readFileSync("../node/article_cache/article_cache.conf",'utf8'));
-	}catch(e) { }
-	
-	try {
-		return JSON.parse(fs.readFileSync("article_cache.conf",'utf8'));
-	}catch(e) {
-		console.log('article_cache.conf: JSON syntax error!',10);
-	}
 }
 
 /**
