@@ -450,7 +450,7 @@ function postToFeed( feedUpdateDetails, callback ) {
 					if(article.title)
 						{
 							/* Clean description of any invalid characters */
-							article.title = replace(/[^A-Za-z 0-9 \.,\?'""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g,'');
+							article.title = article.title.replace(/[^A-Za-z 0-9 \.,\?'""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g,'');
 						}
 						
 					if(article.description)
