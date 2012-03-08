@@ -13,7 +13,7 @@ fs.mkdir("./cache", 0775, function(e) {});
 fs.mkdir("./cache2", 0775, function(e) {}); 
 
 var cacheTimeout = 900000; // 15 minutes
-var cache2File = require('../node_modules/cache2file'),
+var cache2File = require('cache2file'),
 	cache = new cache2File("/flockworks/flockweb/cache/", cacheTimeout /* Timeout in milliseconds */), // Generate a new cache
 	cache2 = new cache2File("/flockworks/flockweb/cache2/", 21600000); // 6 hours
 

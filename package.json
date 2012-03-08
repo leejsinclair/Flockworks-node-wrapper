@@ -1,12 +1,13 @@
 {
-    "name": "Flockworks-node-wrapper"
+    "name": "flockworks"
   , "description": "Node.js wrapper for flockworks"
   , "version": "0.1.0"
   , "author": "Lee Sinclair <lee@kudosknowledge.com>"
   , "license" : "BSD"
   , "keywords": ["semantic engine", "flockworks", "api"]
   , "dependencies": {
-        "restler": "2.0.0"
+        "restler": "2.0.0",
+        "cache2file": "0.2.1"
     }
   , "main": "./index.js"
   , "engines": { "node": ">= 0.6.11" }
