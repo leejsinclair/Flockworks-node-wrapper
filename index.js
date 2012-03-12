@@ -13,6 +13,7 @@
  * 				list			: 	Get list of channels owned by user
  * 				preview			: 	Get privew of articles across all channels owned by agent/user
  * 				content			: 	Get channel content
+ * 				new				: 	Save new channel
  * 				update 			: 	Update channel details
  * 				clone 			: 	Clone an existing channel in to a specific users profile
  * 
@@ -23,8 +24,10 @@
  *
  */
 var   fs 			= require('fs')
+	, rest 			= require('restler')
 	, httpWrapper 	= require('./lib/httpWrapper')
 	, functions 	= require('./lib/functions')
+	, url 			= require('url')
 	, settings 		= {
 						"articleCache": 
 							{
@@ -55,7 +58,10 @@ var   fs 			= require('fs')
 									"updatePrivateFeeds": "/api/feed/download/private/{uid}/{feather}"
 								}
 							}
-					   };
+					   }
+	, errorTemplate		= 	{
+								"error": true, "status": "error", "message": ""
+							};
 
 /**
  * Author:		Lee Sinclair
@@ -74,7 +80,7 @@ function setAPIDomain( serverDomain ) {
 			serverDomain = serverDomain.replace("http://").replace("https://").replace("/api/");
 			fw.uri = "http://" + serverDomain + "/api/";
 		}
-
+		
 	return fw;
 };
 
@@ -101,19 +107,36 @@ exports.setAPIDomain = setAPIDomain;
  * 
  */
 var signUp = function( data, callback ) {
-	/* API request - START */
-	var endPoint = getEndPoint( "post", "signup", [] );
-	approved = true;  														// check beta registration
+	var   endPoint = getEndPoint( "post", "signup", [] )
+		, postValue = JSON.stringify(data)
+		, approved = true;  														// check beta registration
 	
-	functions.httpRequest('POST',endPoint,JSON.stringify(data),function( APIresponse ) {
-		try {
-			profile = JSON.parse(APIresponse);
-		} catch(e) {
-			profile = APIresponse;
+	rest.post(endPoint, 
+		{
+			data: postValue
 		}
-		
-		callback( profile, approved );
-	});
+	).on('complete', function( agentProfile, status )
+		{
+			console.log("status.statusCode: " + status.statusCode);
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						profile = JSON.parse(agentProfile);
+					} catch(e) {
+						profile = agentProfile;
+					}
+					callback(profile, true);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for sign up";
+					callback(response, false);
+				}
+		}
+	
+	);
+
 };
 
 /**
@@ -162,17 +185,34 @@ var updateAccount = function( uid, feather, data, callback ) {
 
 var signUpQuick = function( data, callback ) {
 	/* API request - START */
-	var endPoint = getEndPoint( "post", "signup", [] );
+	var   endPoint  = getEndPoint( "post", "signup", [] )
+		, postValue = JSON.stringify(data);
 	
-	functions.httpRequest('POST',endPoint,JSON.stringify(data),function( APIresponse ) {
-		try {
-			profile = JSON.parse(APIresponse);
-		} catch(e) {
-			profile = APIresponse;
+	rest.post(endPoint, 
+		{
+			data: postValue
 		}
-		
-		callback( profile );
-	});
+	).on('complete', function( agentProfile, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						profile = JSON.parse(agentProfile);
+					} catch(e) {
+						profile = agentProfile;
+					}
+					callback(profile);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for sign in";
+					callback(response);
+				}
+		}
+	
+	);
+
 };
 
 /**
@@ -189,19 +229,35 @@ var signUpQuick = function( data, callback ) {
  */
 var signIn = function( email, password, callback ) {
 	var endPoint = getEndPoint( "post", "signin", [] );
-	if ( email != '' && password != '' ) {
-		var postValue = JSON.stringify({ "email" : email, "password" : password });
-		//console.log("signIn: " + endPoint);
-		//console.log("postValue: " + postValue);
-		httpWrapper.httpRequest( 'POST', endPoint, postValue , function( agentProfile ) {
-			try {
-				profile = JSON.parse(agentProfile);
-			} catch(e) {
-				profile = agentProfile;
-			}
-			callback(profile);
-		});	
-	}
+	if ( email != '' && password != '' ) 
+		{
+			var postValue = JSON.stringify({ "email" : email, "password" : password });
+			
+			rest.post(endPoint, 
+				{
+					data: postValue
+				}
+			).on('complete', function( agentProfile, status )
+				{
+					if(status.statusCode>=200 && status.statusCode<=202) 
+						{
+							try {
+								profile = JSON.parse(agentProfile);
+							} catch(e) {
+								profile = agentProfile;
+							}
+							callback(profile);
+						}
+					else
+						{
+							response = errorTemplate;
+							response.message = "Invalid data for sign in";
+							callback(response);
+						}
+				}
+			
+			);
+		}
 };
 
 /**
@@ -220,16 +276,26 @@ var getUserProfile = function( agentId, feather, callback ) {
 	
 	console.log("getUserProfile: " + endPoint);
 	
-	httpWrapper.httpRequest( 'GET', endPoint, function( profileObj ) {
-		try {
-			profile = JSON.parse(profileObj);
-		} catch(e) {
-			console.log("not ok: " + e);
-			profile = null;
+	rest.get(endPoint).on('complete', function( agentProfile, status )
+		{
+			console.log(status.statusCode)
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						profile = JSON.parse(agentProfile);
+					} catch(e) {
+						profile = agentProfile;
+					}
+					callback(profile);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for get user profile";
+					callback(response);
+				}
 		}
-		
-		callback(profile);
-	});	
+	);
 };
 
 /**
@@ -257,23 +323,40 @@ var passwordFunctions = {
 	
 	request: function(emailAddress, templates, callbackURL, callback){
 			
-			var postValue = {
+			var data = {
 				"emailAddress" : emailAddress,
 				"confirmTemplate": templates.confirmTemplate,
 				"successTemplate": templates.successTemplate,
 				"callback": callbackURL
 			};
 			
-			var endPoint = getEndPoint( "post", "forgotPassword", [ ] );
+			var   postValue = JSON.stringify(data)
+				, endPoint = getEndPoint( "post", "forgotPassword", [ ] );
 			
-			functions.httpRequest('POST', endPoint, JSON.stringify(postValue), function( APIresponse, post ) {
-				try {
-					response = JSON.parse(APIresponse);
-				} catch(e) {
-					response = APIresponse;
+			rest.post(endPoint, 
+				{
+					data: postValue
 				}
-				callback(response);
-			});
+			).on('complete', function( APIresponse, status )
+				{
+					if(status.statusCode>=200 && status.statusCode<=202) 
+						{
+							try {
+								response = JSON.parse(APIresponse);
+							} catch(e) {
+								response = APIresponse;
+							}
+							callback(response);
+						}
+					else
+						{
+							response = errorTemplate;
+							response.message = "Invalid data forgot password";
+							callback(response);
+						}
+				}
+			
+			);
 	}
 	
 };
@@ -305,21 +388,37 @@ var passwordFunctions = {
  * Notes:		"password", is optional if left blank the password will not be updated
  */
 var auth = function ( socialNetworkName, uid, feather, data, callback ) {
-	var endPoint = getEndPoint( "post", "auth", [ socialNetworkName, uid, feather ] );
-
-	//console.log('Login:' + endPoint);
-
-	functions.httpRequest('POST',endPoint, JSON.stringify(data), function(APIresponse) {
-		//console.log("API response:");
-		//console.log(APIresponse);
-		
-		try {
-			response = JSON.parse(APIresponse);
-		} catch(e) {
-			response = APIresponse;
+	var   endPoint  = getEndPoint( "post", "auth", [ socialNetworkName, uid, feather ] )
+		, postValue = JSON.stringify(data);
+	
+	rest.post(endPoint, 
+		{
+			data: postValue
 		}
-		callback(response);
-	});
+	).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try 
+						{
+							response = JSON.parse(APIresponse);
+						} 
+					catch(e) 
+						{
+							response = APIresponse;
+						}
+						
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for third party authentication";
+					callback(response);
+				}
+		}
+	
+	);
 };
 
 /*
@@ -339,14 +438,25 @@ var getChannelList = function( uid, feather, callback ) {
 	
 	console.log("getChannelList: " + endPoint);
 	
-	functions.httpRequest('GET',endPoint, function(APIresponse) {
-		try {
-			response = JSON.parse(APIresponse);
-		} catch(e) {
-			response = APIresponse;
+	rest.get(endPoint).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						response = JSON.parse(APIresponse);
+					} catch(e) {
+						response = APIresponse;
+					}
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for get user profile";
+					callback(response);
+				}
 		}
-		callback(response);
-	});
+	);
 };
 
 /*
@@ -364,10 +474,26 @@ var getChannelList = function( uid, feather, callback ) {
  */
 var getChannelPreview = function( numberToDisplay, uid, feather, callback ) {
 	var endPoint = getEndPoint( "get", "channelPreview", [ numberToDisplay, uid, feather ] );
-
-	getAPIData(endPoint, function(response) {
-		callback(response);
-	});
+	
+	rest.get(endPoint).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						response = JSON.parse(APIresponse);
+					} catch(e) {
+						response = APIresponse;
+					}
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid request for channel preview";
+					callback(response);
+				}
+		}
+	);
 };
 
 /*
@@ -384,35 +510,89 @@ var getChannelPreview = function( numberToDisplay, uid, feather, callback ) {
  * 				callback : 	function ( channel list )
  * 				cacheme	:  	Boolean ( true = cache results )
  */
-var getChannel = function( uid, feather, channelId, callback ) {
+var getChannel = function( uid, feather, channelId, callback, cacheme ) {
 	var endPoint = getEndPoint( "get", "channel", [ channelId, uid, feather ] );
 	
-	getAPIData(endPoint, function(response) {
-		if(response.ok && response.ok==true) {
-			response = false;
+	rest.get(endPoint).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						response = JSON.parse(APIresponse);
+					} catch(e) {
+						response = APIresponse;
+					}
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid request for channel preview";
+					callback(response);
+				}
 		}
-		callback(response);
-	});
+	);
 
 };
 
-
 /*
- * Special routine for getting API responses, includes caching options
- * Parameters:
- *			endPoint:     (String) URL to request
- * 			callback:	  (Function) callback function
+ * Author:		Lee Sinclair
+ * Updated:		12 Mar 2012
+ * 
+ * Method:		agent.channel.new
+ * 					Updates channel details
+ * 
+ * Parameters:	
+ * 				agentId	: 	String ( flockworks agent ID )
+ * 				feather	: 	String ( session feather used to verifiy user request )
+ * 				data	: 	Object ( updated channel details )
+ * 				callback : 	function ( channel list )
  */
-function getAPIData( endPoint, callback) {
-	functions.httpRequest('GET',endPoint, function(APIresponse) {
-		try {
-			response = JSON.parse(APIresponse);
-		} catch(e) {
-			response = APIresponse;
+function newChannel( uid, feather, data, callback ) {
+	var endPoint = getEndPoint( "post", "channel", [ uid, feather ] );
+	var postJson = data;
+	
+	if(!data.name || (data.name+"").length<=0 || !data.agentId || (data.agentId+"").length<=0)
+		{
+			response = errorTemplate;
+			response.message = "Invalid data for channel: newChannel";
+			callback(response);
+		}
+	else 
+		{
+			postJson.id = null;		// Make channel ID null, to save as new channel
+			var postValue = JSON.stringify(postJson);
+			
+			rest.post(endPoint, 
+				{
+					data: postValue
+				}
+			).on('complete', function( APIresponse, status )
+				{
+					if(status.statusCode>=200 && status.statusCode<=202) 
+						{
+							try 
+								{
+									response = JSON.parse(APIresponse);
+								} 
+							catch(e) 
+								{
+									response = APIresponse;
+								}
+								
+							callback(response);
+						}
+					else
+						{
+							response = errorTemplate;
+							response.message = "Invalid data for third party authentication";
+							callback(response);
+						}
+				}
+			
+			);
 		}
 
-		callback(response);
-	});
 }
 
 /*
@@ -431,17 +611,46 @@ function getAPIData( endPoint, callback) {
 function updateChannel( uid, feather, data, callback ) {
 	var endPoint = getEndPoint( "post", "channel", [ uid, feather ] );
 	var postJson = data;
-
-	console.log(endPoint);
-	functions.httpRequest('POST',endPoint, JSON.stringify(postJson), function(APIresponse) {	
-		try {
-			response = JSON.parse(APIresponse);
-		} catch(e) {
-			response = APIresponse;
+	
+	if(!data.name || (data.name+"").length<=0 || !data.id || (data.id+"").length<=0 || !data.agentId || (data.agentId+"").length<=0)
+		{
+			response = errorTemplate;
+			response.message = "Invalid data for channel: updateChannel";
+			callback(response);
 		}
-		console.log(response);
-		callback(response);
-	});
+	else 
+		{
+			var postValue = JSON.stringify(postJson);
+			
+			rest.post(endPoint, 
+				{
+					data: postValue
+				}
+			).on('complete', function( APIresponse, status )
+				{
+					if(status.statusCode>=200 && status.statusCode<=202) 
+						{
+							try 
+								{
+									response = JSON.parse(APIresponse);
+								} 
+							catch(e) 
+								{
+									response = APIresponse;
+								}
+								
+							callback(response);
+						}
+					else
+						{
+							response = errorTemplate;
+							response.message = "Invalid data for third party authentication";
+							callback(response);
+						}
+				}
+			
+			);
+		}
 }
 
 /*
@@ -466,15 +675,37 @@ function cloneChannel( uid, feather, channelId, callback ) {
 		"agentId": uid,
 		"cloneFrom": channelId
 	};
-
-	functions.httpRequest('POST',endPoint, JSON.stringify(postJson), function(APIresponse) {	
-		try {
-			response = JSON.parse(APIresponse);
-		} catch(e) {
-			response = APIresponse;
+	
+	var postValue = JSON.stringify(postJson);
+			
+	rest.post(endPoint, 
+		{
+			data: postValue
 		}
-		callback(response);
-	});
+	).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try 
+						{
+							response = JSON.parse(APIresponse);
+						} 
+					catch(e) 
+						{
+							response = APIresponse;
+						}
+						
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for third party authentication";
+					callback(response);
+				}
+		}
+	
+	);
 }
 
 /*
@@ -492,37 +723,49 @@ function cloneChannel( uid, feather, channelId, callback ) {
 function updatePrivateFeeds( uid, feather, callback ) {
 	var endPoint = getEndPoint( "get", "updatePrivateFeeds", [ uid, feather ] );
 	
-	functions.httpRequest('GET',endPoint, function(APIresponse) {
-		try {
-			response = JSON.parse(APIresponse);
-		} catch(e) {
-			response = APIresponse;
+	rest.get(endPoint).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try {
+						response = JSON.parse(APIresponse);
+					} catch(e) {
+						response = APIresponse;
+					}
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid request for channel preview";
+					callback(response);
+				}
 		}
-		callback(response);
-	});
+	);
 }
 
 exports.agent = {
-	"signUp": signUp,
-	"signUpQuick": signUpQuick,
-	"update": updateAccount,
-	"auth": auth,
-	"signIn": signIn,
+	"signUp"		: signUp,
+	"signUpQuick"	: signUpQuick,
+	"update"		: updateAccount,
+	"auth"			: auth,
+	"signIn"		: signIn,
 	"getUserProfile": getUserProfile,
-	"password": passwordFunctions,
+	"password"		: passwordFunctions,
 	"channel": 
 		{
-			"list": getChannelList,
-			"preview": getChannelPreview,
-			"content": getChannel,
-			"update": updateChannel,
-			"clone": cloneChannel
+			"list"			: getChannelList,
+			"preview"		: getChannelPreview,
+			"content"		: getChannel,
+			"new"			: newChannel,
+			"update"		: updateChannel,
+			"clone"			: cloneChannel
 		},
-	"getChannelList": getChannelList,
-	"getChannelPreview": getChannelPreview,
-	"getChannel": getChannel,
-	"updateChannel": updateChannel,
-	"cloneChannel": cloneChannel,
+	"getChannelList"	: getChannelList,
+	"getChannelPreview"	: getChannelPreview,
+	"getChannel"		: getChannel,
+	"updateChannel"		: updateChannel,
+	"cloneChannel"		: cloneChannel,
 	"updatePrivateFeeds": updatePrivateFeeds
 }
 
@@ -532,9 +775,9 @@ exports.postTo = function( postNetworkName, uid, feather, post, callback ) {
 	var content = post.content;
 	var url = (post.url?post.url:'');
 	var feedID = (post.feedId?post.feedId:'null');
-
+	
 	var endPoint = getEndPoint( "post", "publish", [ feedId, uid, feather ] );
-
+	
 	switch(postNetworkName.toLowerCase()) {
 		case "twitter":
 			endPoint = getEndPoint( "post", "socialShare", [ postNetworkName, uid, feather ] );
@@ -553,9 +796,36 @@ exports.postTo = function( postNetworkName, uid, feather, post, callback ) {
 			message = { 'text': teaser + ' ' + url };
 			break;
 	}
-
-	sendData = JSON.stringify(message);
-	httpWrapper.httpRequest( 'POST', endPoint, sendData, callback );
+	
+	postValue = JSON.stringify(message);
+			
+	rest.post(endPoint, 
+		{
+			data: postValue
+		}
+	).on('complete', function( APIresponse, status )
+		{
+			if(status.statusCode>=200 && status.statusCode<=202) 
+				{
+					try 
+						{
+							response = JSON.parse(APIresponse);
+						} 
+					catch(e) 
+						{
+							response = APIresponse;
+						}
+						
+					callback(response);
+				}
+			else
+				{
+					response = errorTemplate;
+					response.message = "Invalid data for third party authentication";
+					callback(response);
+				}
+		}
+	);
 
 };
 
@@ -596,7 +866,7 @@ function postToFeed( feedUpdateDetails, callback ) {
 		return;
 
 	var items = feedUpdateDetails.items;
-
+	
 	items.forEach( function( article, index )
 		{
 			if(article.title && (article.title+"").length>0 && article.link)
@@ -606,7 +876,7 @@ function postToFeed( feedUpdateDetails, callback ) {
 							/* Clean description of any invalid characters */
 							article.title = article.title.replace(/[^A-Za-z 0-9 \.,\?'""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g,'');
 						}
-
+						
 					if(article.description)
 						{
 							/* Remove ads where possible */
@@ -616,13 +886,13 @@ function postToFeed( feedUpdateDetails, callback ) {
 							/* Create plain text property */
 							article.plainText = article.description.replace(/<[^>]+>/gi,"");
 						}
-
+						
 					if(article.pubDate) 
 						{
 							/* API expects "datePublish" property */
 							article.datePublished = article.pubDate;
 						}
-
+					
 					if(article.link)
 						{
 							/* Clean link */
@@ -630,18 +900,18 @@ function postToFeed( feedUpdateDetails, callback ) {
 							/* API expects "url" property */
 							article.url = article.link.replace(/\/feed\/atom\/$/,"/");
 						}
-
+						
 					if(!article.type)
 						{
 							article.type = "rss";
 						}
 				}
-
+			
 		}
 	);
 
 	postNewArticles(feedUpdateDetails, callback );
-
+	
 }
 
 /** 
@@ -650,142 +920,53 @@ function postToFeed( feedUpdateDetails, callback ) {
  *    processed in previous processing cycles
  * 
  *	@since			0.1
- *	@version		0.1
- *	@author			Chunglong	longbill.cn@gmail.com
+ *	@version		0.3
+ *	@author			Lee Sinclair
  * 	@method
  *  @calledFrom		getFeed()
  * 	@param			{ Object } feed object passed from getFeed function, object contains .uri
  *  @param			{ Array }  array of new posts (JSON representation of RSS. see parseRSS )
  * 	@namespace		.
  * 	@id */
-function postNewArticles(feedUpdateDetails, callback)
-{
-	var json = JSON.stringify(feedUpdateDetails);
+function postNewArticles(feedUpdateDetails, callback) {
+	var postValue = JSON.stringify(feedUpdateDetails);
 	var id = feedUpdateDetails.id;
 	console.log("Posting... \"" + feedUpdateDetails.title + "\"");
-	var url = getEndPoint( "post", "feedItems", [ id ] );
+	var endPoint = getEndPoint( "post", "feedItems", [ id ] );
 	var articleCacheSettings = settings.articleCache;
-
+	
 	//saveJSON("/tmp/" + feed.title, {"items":posts});
-
-	functions.httpRequest('POST',url,json,function(s)
+	
+	rest.post(endPoint, 
 		{
-
-			try { apiResponse = JSON.parse(s); } catch(e) { return; }
-			var success = [];
-			console.log('apiResponse.successes.length: ' + apiResponse.successes.length,1 );
-
-			if (apiResponse.successes.length !=0) {
-				var successes = apiResponse.successes;
-				for (i=0; i<apiResponse.successes.length; i++) 
-					{
-						articleOBJ = 
-							{
-								"content_id": successes[i]._id,
-								"title": successes[i].title,
-								"url": successes[i].url,
-								"text": successes[i].text,
-								"origin": "downloader",
-								"feedId": id,
-								"downloaded": false,
-								"thumbUrl": successes[i].thumbUrl
-							}
-
-						success.push( articleOBJ );
-
-						/* Post to article content downloader */
-						var url = settings.articleCache.url + successes[i]._id;
-
-						if(settings.articleCache.ports) 
-							{
-								var randomPort=Math.floor(Math.random()*(settings.articleCache.ports.length))
-								var url = url.replace( "{port}", settings.articleCache.ports[randomPort]+"" );
-							} 
-						else 
-							{
-								url = url.replace( "{port}","8878" );
-							}
-
-						downloadArticle( url, articleOBJ, function( response ) 
-							{
-									console.log("downloaded");
-									console.log(response);
-							}
-						);
-					}
-
-				var response = {
-					"id": feedUpdateDetails.id,
-					"title": feedUpdateDetails.title,
-					"items": success
-				};
-
-				callback(response);
-
-			} else if (apiResponse.successes.length ==0 && apiResponse.failureCount !=0) {
-				console.log('Error!!! details saved to: posts/' + feed.id + '_response.json');
-				//saveJSON('./posts/' + feed.id + '_post.json',{"items":posts});
-				//saveJSON('./posts/' + feed.id + '_response.json',JSON.parse(s));
-			}
+			data: postValue
 		}
-		,0
-	);
-}
-
-function downloadArticle( url, articleOBJ, callback ) {
-
-	if(articleOBJ.thumbUrl && articleOBJ.thumbUrl.length>0)
+	).on('complete', function( APIresponse, status )
 		{
-			// check if thumb image is valid ( i.e. gets 200 status response )
-			functions.validateImage( articleOBJ.thumbUrl, function(valid)
+			if(status.statusCode>=200 && status.statusCode<=202) 
 				{
-					if(!valid) {
-						console.log("Dropping image: " + articleOBJ.thumbUrl);
-						articleOBJ.thumbUrl = "";
-					}
-
-
-					console.log('POSTing article: "' + articleOBJ.title + " > " + url );
-					var articleJSON = JSON.stringify(articleOBJ);
-					functions.httpRequest('POST',url,articleJSON,function(s)
+					try 
 						{
-							try {
-								var article = JSON.parse(s);
-								if(article.title)
-									console.log("Processed: \"" + article.title + "\"");
-							} catch(e) {
-								console.log("Unable to process: " + articleOBJ.title);
-							}
-
-							if(callback)
-								callback(article)
-
+							response = JSON.parse(APIresponse);
+						} 
+					catch(e) 
+						{
+							response = APIresponse;
 						}
-					);
+						
+					callback(response);
 				}
-			);
-		}
-	else
-		{
-			var articleJSON = JSON.stringify(articleOBJ);
-			console.log('POSTing article: "' + articleOBJ.title + " > " + url );
-			functions.httpRequest('POST',url,articleJSON,function(s)
+			else
 				{
-					try {
-						var article = JSON.parse(s);
-						if(article.title)
-							console.log("Processed: \"" + article.title + "\"");
-					} catch(e) {
-						console.log("Unable to process: " + articleOBJ.title);
-					}
-
-					if(callback)
-						callback(article)
-
+					response = errorTemplate;
+					response.message = "Invalid data for third party authentication";
+					callback(response);
 				}
-			);
 		}
+	);
+
 }
+
 
 exports.feed = {
 	"post":  postToFeed
@@ -803,57 +984,3 @@ function getEndPoint( type, purpose, urlVars ) {
     
     return endPoint;
 }
-
-/**
-* do a http GET or POST request
-* for GET requests: httpRequest('GET','http://xxx.com/xxx/yyy',function(response){ ... })
-* for POST requests: httpRequest('POST','http://xxx.com/xxx/yyy','POST_CONTENT',function(response){ ... })
-*/
-function httpJson(method,url,data,callback)
-{
-	console.log('httpReqeust '+method+' '+url);
-	if (method == 'GET') callback = data;
-	var origURL = url;
-	var url = require('url').parse(url);
-	var options = 
-	{
-		host: url.hostname,
-		port: url.port?url.port:80,
-		path: url.pathname+(url.query?'?'+url.query:''),
-		method: method,
-		headers: 
-		{
-			'Connection': 'keep-alive',
-			'User-Agent': 'NodeJS v0.4.7',
-			'Content-Type': 'application/json'
-		}
-	};
-	
-	var req = http.request(options, function(res)
-	{
-		//console.log(res);
-		if (res.statusCode == 302 || res.statusCode == 301)
-		{
-			console.log(res.statusCode+' found! redirecting to '+res.headers.location+'...');
-			httpJson(method,res.headers.location,data,callback);
-			return;
-		}
-		
-		res.setEncoding('utf8');
-		var s = '';
-		res.on('data',function(chunk)
-		{
-			s+=chunk.toString('utf8');
-		});
-		res.on('end',function()
-		{
-			callback(s,data);
-		});
-	});
-	req.on('error',function(err)
-	{
-		console.log('request error while requesting '+origURL,10);
-	});
-	if (method == 'POST') req.write(data);
-	req.end();
-};
