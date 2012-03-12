@@ -22,49 +22,40 @@
  * 			post				: 	Post new content to a specific feed
  *
  */
-var fs 				= require('fs');
-					fs.mkdir("./cache", 0775, function(e) {});
-					fs.mkdir("./cache2", 0775, function(e) {}); 
-
-var 
-	  httpWrapper 	= require('./lib/httpWrapper')
+var   fs 			= require('fs')
+	, httpWrapper 	= require('./lib/httpWrapper')
 	, functions 	= require('./lib/functions')
-	, url 			= require('url')
 	, settings 		= {
-							"articleCache": 
-								{
-									"url": "http://localhost:{port}/article/",
-									"ports": [ "8878", "8879" ]
-								}
-						}
-	, cacheTimeout 	= 900000 // 15 minutes
-	, cache2File 	= require('cache2file')
-	, cache 		= new cache2File("./cache/", cacheTimeout /* Timeout in milliseconds */) // Generate a new cache
-	, cache2 		= new cache2File("./cache2/", 21600000) // 6 hours
-	, fw 			= {
-						"uri": "http://127.0.0.1:8183/api/",
-						"endpoint": {
-							"post": {
-								"feedItems": "content/import/{id}",
-								"signup": "agent",
-								"update": "agent/{uid}/{feather}",
-								"auth": "agent/auth/{networkname}/{uid}/{feather}",
-								"signin": "agent/signin",
-								"socialShare": "{networkname}/status/{uid}/{feather}",
-								"publish": "publish/feed/{feedId}/{uid}/{feather}",
-								"forgotPassword": "agent/forgot",
-								"channel": "channel/{uid}/{feather}",
-								"cloneChannel": "channel/{uid}/{feather}"
-							},
-							"get": {
-								"profile": "agent/id/{agentId}",
-								"channelList": "/api/channel/{uid}/{feather}",
-								"channelPreview": "/api/channel/preview/{number}/{uid}/{feather}",
-								"channel": "/api/channel/content/{channelId}/{uid}/{feather}",
-								"updatePrivateFeeds": "/api/feed/download/private/{uid}/{feather}"
+						"articleCache": 
+							{
+								"url": "http://localhost:{port}/article/",
+								"ports": [ "8878", "8879" ]
 							}
-						}
-					};
+					  }
+	, fw 			= {
+							"uri": "http://127.0.0.1:8183/api/",
+							"endpoint": {
+								"post": {
+									"feedItems": "content/import/{id}",
+									"signup": "agent",
+									"update": "agent/{uid}/{feather}",
+									"auth": "agent/auth/{networkname}/{uid}/{feather}",
+									"signin": "agent/signin",
+									"socialShare": "{networkname}/status/{uid}/{feather}",
+									"publish": "publish/feed/{feedId}/{uid}/{feather}",
+									"forgotPassword": "agent/forgot",
+									"channel": "channel/{uid}/{feather}",
+									"cloneChannel": "channel/{uid}/{feather}"
+								},
+								"get": {
+									"profile": "agent/id/{agentId}",
+									"channelList": "/api/channel/{uid}/{feather}",
+									"channelPreview": "/api/channel/preview/{number}/{uid}/{feather}",
+									"channel": "/api/channel/content/{channelId}/{uid}/{feather}",
+									"updatePrivateFeeds": "/api/feed/download/private/{uid}/{feather}"
+								}
+							}
+					   };
 
 /**
  * Author:		Lee Sinclair
@@ -83,7 +74,7 @@ function setAPIDomain( serverDomain ) {
 			serverDomain = serverDomain.replace("http://").replace("https://").replace("/api/");
 			fw.uri = "http://" + serverDomain + "/api/";
 		}
-		
+
 	return fw;
 };
 
@@ -112,7 +103,7 @@ exports.setAPIDomain = setAPIDomain;
 var signUp = function( data, callback ) {
 	/* API request - START */
 	var endPoint = getEndPoint( "post", "signup", [] );
-	approved = checkApproved(data.email); 														// check beta registration
+	approved = true;  														// check beta registration
 	
 	functions.httpRequest('POST',endPoint,JSON.stringify(data),function( APIresponse ) {
 		try {
@@ -158,8 +149,6 @@ var updateAccount = function( uid, feather, data, callback ) {
 	data.id = uid;
 	data.feather = feather;
 	
-	//console.log(data);
-	
 	functions.httpRequest('PUT',endPoint,JSON.stringify(data),function( APIresponse ) {
 		try {
 			profile = JSON.parse(APIresponse);
@@ -202,6 +191,8 @@ var signIn = function( email, password, callback ) {
 	var endPoint = getEndPoint( "post", "signin", [] );
 	if ( email != '' && password != '' ) {
 		var postValue = JSON.stringify({ "email" : email, "password" : password });
+		//console.log("signIn: " + endPoint);
+		//console.log("postValue: " + postValue);
 		httpWrapper.httpRequest( 'POST', endPoint, postValue , function( agentProfile ) {
 			try {
 				profile = JSON.parse(agentProfile);
@@ -227,10 +218,13 @@ var signIn = function( email, password, callback ) {
 var getUserProfile = function( agentId, feather, callback ) {
 	var endPoint = getEndPoint( "get", "profile", [ agentId, feather ] );
 	
+	console.log("getUserProfile: " + endPoint);
+	
 	httpWrapper.httpRequest( 'GET', endPoint, function( profileObj ) {
 		try {
 			profile = JSON.parse(profileObj);
 		} catch(e) {
+			console.log("not ok: " + e);
 			profile = null;
 		}
 		
@@ -246,6 +240,7 @@ var getUserProfile = function( agentId, feather, callback ) {
  * 					Various password methods
  */
 var passwordFunctions = {
+	
 	/**
 	 * Author:		Lee Sinclair
 	 * Updated:		8 Mar 2012
@@ -259,6 +254,7 @@ var passwordFunctions = {
 	 * 				callbackURL	: String ( URL of the page that will be displayed after a request to reset password )
 	 * 				callback:	: function ( JSON: request to reset password API response )
 	 */
+	
 	request: function(emailAddress, templates, callbackURL, callback){
 			
 			var postValue = {
@@ -310,6 +306,7 @@ var passwordFunctions = {
  */
 var auth = function ( socialNetworkName, uid, feather, data, callback ) {
 	var endPoint = getEndPoint( "post", "auth", [ socialNetworkName, uid, feather ] );
+
 	//console.log('Login:' + endPoint);
 
 	functions.httpRequest('POST',endPoint, JSON.stringify(data), function(APIresponse) {
@@ -365,14 +362,10 @@ var getChannelList = function( uid, feather, callback ) {
  * 				callback : 	function ( channel list )
  * 				cacheme	:  	Boolean ( true = cache results )
  */
-var getChannelPreview = function( numberToDisplay, uid, feather, callback, cacheMe ) {
-	//console.log("getChannelPreview:");
+var getChannelPreview = function( numberToDisplay, uid, feather, callback ) {
 	var endPoint = getEndPoint( "get", "channelPreview", [ numberToDisplay, uid, feather ] );
-	
-	cacheMe = (feather!="wintermead"?false:cacheMe); // Don't cache custom channels
-	
-	//console.log("getChannelPreview: " + endPoint);
-	getAPIData(endPoint, cacheMe, cacheMe, function(response) {
+
+	getAPIData(endPoint, function(response) {
 		callback(response);
 	});
 };
@@ -391,13 +384,10 @@ var getChannelPreview = function( numberToDisplay, uid, feather, callback, cache
  * 				callback : 	function ( channel list )
  * 				cacheme	:  	Boolean ( true = cache results )
  */
-var getChannel = function( uid, feather, channelId, callback, cacheme ) {
+var getChannel = function( uid, feather, channelId, callback ) {
 	var endPoint = getEndPoint( "get", "channel", [ channelId, uid, feather ] );
 	
-	console.log("getChannel: " + endPoint);
-	
-	getAPIData(endPoint, (cacheme?cacheme:false), false /* Keep cache for public channels for 24 hours */, function(response) {
-		//console.log("getChannel: " + response);
+	getAPIData(endPoint, function(response) {
 		if(response.ok && response.ok==true) {
 			response = false;
 		}
@@ -411,99 +401,18 @@ var getChannel = function( uid, feather, channelId, callback, cacheme ) {
  * Special routine for getting API responses, includes caching options
  * Parameters:
  *			endPoint:     (String) URL to request
- *			cacheIt:      (Boolean) if true then cache item
- *			cacheForever: (Boolean) if true caches data for 1 day (however if the 10 minute timeout is reached, then this cache is updated also)
+ * 			callback:	  (Function) callback function
  */
-function getAPIData( endPoint, cacheIt, cacheForever /* or 1 day */, callback) {
-	var key = endPoint;
-	var key2 = endPoint + ":24"; // key for sliding caching
-	if(cacheIt) {
-		// Attempt to retrieve from short term cache
-		//console.log("Attempting short term cache");
-		cache.get(key, function (err, data) {
-			if(data==null) err=true;
+function getAPIData( endPoint, callback) {
+	functions.httpRequest('GET',endPoint, function(APIresponse) {
+		try {
+			response = JSON.parse(APIresponse);
+		} catch(e) {
+			response = APIresponse;
+		}
 
-			// Use cache if it contains no errors
-			if(!err && data.length>0 && data.indexOf('"ok":false') < 0 && data.indexOf("502 Bad gateway") < 0 && data.indexOf("504 Gateway Timeout") < 0 && data.indexOf("Internal Server Error") < 0 && data.indexOf('"No node available"') <0) {
-				//console.log("Using short term cache");
-				try { response = JSON.parse(data); }
-				catch(e) { console.log("flockworks.js getAPIData @@1: " + data); }
-				
-				callback(response);
-
-				if(cacheForever)
-					cache2.set( key2, JSON.stringify(response) ); 	// set cache to re-update 24 hours
-			} else {
-				// Attempt to retrieve from long term cache
-				console.log("Attempting long term cache");
-				cache2.get(key2, function (err, data) {
-					if(!err)
-						console.log("Retrieved long term cache");
-					// Use cache if it contains no errors
-					if(!err && data.length>0 && data.indexOf('"ok":false') < 0 && data.indexOf("<title>502 Bad gateway</title>") < 0 && data.indexOf("<title>504 Gateway Timeout</title>") < 0 && data.indexOf("Internal Server Error") < 0 && data.indexOf('"No node available"') <0) {
-						console.log("Using long term cache");
-						response = JSON.parse(data);
-						callback(response);
-
-						// Reset short term cache timer, so that parellel requests don't bunch up for a single api request
-						// This will be reset again, once the API responds
-						cache.set( key, JSON.stringify(response) ); 
-
-						// Make API request
-						functions.httpRequest('GET',endPoint, function(APIresponse) {
-							try { response = JSON.parse(APIresponse); } 
-							catch(e) { response = APIresponse; }
-
-							// Update cache
-							if(response.ok && response.ok==true) {
-								cache.set( key, JSON.stringify(response) ); 		// set short term cache
-								if(cacheForever)
-									cache2.set( key2, JSON.stringify(response) ); 	// set cache to re-update 24 hours
-							} else {
-								cache.set( key, JSON.stringify(response) ); 		// set short term cache
-								if(cacheForever)
-									cache2.set( key2, JSON.stringify(response) ); 	// set cache to re-update 24 hours
-							}
-						}); // </functions.httpRequest>
-
-					} else {
-						// Update cache with call back
-						console.log("no cache found");
-						functions.httpRequest('GET',endPoint, function(APIresponse) {
-							try { response = JSON.parse(APIresponse); } 
-							catch(e) { response = APIresponse; }
-
-							if(response.ok && response.ok==true) {
-								cache.set( key, JSON.stringify(response) ); 		// set short term cache
-								if(cacheForever)
-									cache2.set( key2, JSON.stringify(response) ); // set cache to re-update 24 hours
-							} else {
-								cache.set( key, JSON.stringify(response) ); 		// set short term cache
-								if(cacheForever)
-									cache2.set( key2, JSON.stringify(response) ); // set cache to re-update 24 hours
-							}
-
-							callback(response);
-						}); // </functions.httpRequest>
-					}
-				}); // </cache.get key2>
-				
-			}
-			
-		}); // </cache.get key>
-	} // </cacheIt> 
-	else // No cache requested
-	{
-		functions.httpRequest('GET',endPoint, function(APIresponse) {
-			try {
-				response = JSON.parse(APIresponse);
-			} catch(e) {
-				response = APIresponse;
-			}
-
-			callback(response);
-		});
-	}
+		callback(response);
+	});
 }
 
 /*
@@ -623,9 +532,9 @@ exports.postTo = function( postNetworkName, uid, feather, post, callback ) {
 	var content = post.content;
 	var url = (post.url?post.url:'');
 	var feedID = (post.feedId?post.feedId:'null');
-	
+
 	var endPoint = getEndPoint( "post", "publish", [ feedId, uid, feather ] );
-	
+
 	switch(postNetworkName.toLowerCase()) {
 		case "twitter":
 			endPoint = getEndPoint( "post", "socialShare", [ postNetworkName, uid, feather ] );
@@ -644,7 +553,7 @@ exports.postTo = function( postNetworkName, uid, feather, post, callback ) {
 			message = { 'text': teaser + ' ' + url };
 			break;
 	}
-	
+
 	sendData = JSON.stringify(message);
 	httpWrapper.httpRequest( 'POST', endPoint, sendData, callback );
 
@@ -687,7 +596,7 @@ function postToFeed( feedUpdateDetails, callback ) {
 		return;
 
 	var items = feedUpdateDetails.items;
-	
+
 	items.forEach( function( article, index )
 		{
 			if(article.title && (article.title+"").length>0 && article.link)
@@ -697,7 +606,7 @@ function postToFeed( feedUpdateDetails, callback ) {
 							/* Clean description of any invalid characters */
 							article.title = article.title.replace(/[^A-Za-z 0-9 \.,\?'""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g,'');
 						}
-						
+
 					if(article.description)
 						{
 							/* Remove ads where possible */
@@ -707,13 +616,13 @@ function postToFeed( feedUpdateDetails, callback ) {
 							/* Create plain text property */
 							article.plainText = article.description.replace(/<[^>]+>/gi,"");
 						}
-						
+
 					if(article.pubDate) 
 						{
 							/* API expects "datePublish" property */
 							article.datePublished = article.pubDate;
 						}
-					
+
 					if(article.link)
 						{
 							/* Clean link */
@@ -721,18 +630,18 @@ function postToFeed( feedUpdateDetails, callback ) {
 							/* API expects "url" property */
 							article.url = article.link.replace(/\/feed\/atom\/$/,"/");
 						}
-						
+
 					if(!article.type)
 						{
 							article.type = "rss";
 						}
 				}
-			
+
 		}
 	);
 
 	postNewArticles(feedUpdateDetails, callback );
-	
+
 }
 
 /** 
@@ -756,16 +665,16 @@ function postNewArticles(feedUpdateDetails, callback)
 	console.log("Posting... \"" + feedUpdateDetails.title + "\"");
 	var url = getEndPoint( "post", "feedItems", [ id ] );
 	var articleCacheSettings = settings.articleCache;
-	
+
 	//saveJSON("/tmp/" + feed.title, {"items":posts});
-	
+
 	functions.httpRequest('POST',url,json,function(s)
 		{
-			
+
 			try { apiResponse = JSON.parse(s); } catch(e) { return; }
 			var success = [];
 			console.log('apiResponse.successes.length: ' + apiResponse.successes.length,1 );
-			
+
 			if (apiResponse.successes.length !=0) {
 				var successes = apiResponse.successes;
 				for (i=0; i<apiResponse.successes.length; i++) 
@@ -781,12 +690,12 @@ function postNewArticles(feedUpdateDetails, callback)
 								"downloaded": false,
 								"thumbUrl": successes[i].thumbUrl
 							}
-							
+
 						success.push( articleOBJ );
-						
+
 						/* Post to article content downloader */
 						var url = settings.articleCache.url + successes[i]._id;
-						
+
 						if(settings.articleCache.ports) 
 							{
 								var randomPort=Math.floor(Math.random()*(settings.articleCache.ports.length))
@@ -796,7 +705,7 @@ function postNewArticles(feedUpdateDetails, callback)
 							{
 								url = url.replace( "{port}","8878" );
 							}
-							
+
 						downloadArticle( url, articleOBJ, function( response ) 
 							{
 									console.log("downloaded");
@@ -804,15 +713,15 @@ function postNewArticles(feedUpdateDetails, callback)
 							}
 						);
 					}
-					
+
 				var response = {
 					"id": feedUpdateDetails.id,
 					"title": feedUpdateDetails.title,
 					"items": success
 				};
-				
+
 				callback(response);
-					
+
 			} else if (apiResponse.successes.length ==0 && apiResponse.failureCount !=0) {
 				console.log('Error!!! details saved to: posts/' + feed.id + '_response.json');
 				//saveJSON('./posts/' + feed.id + '_post.json',{"items":posts});
@@ -824,7 +733,7 @@ function postNewArticles(feedUpdateDetails, callback)
 }
 
 function downloadArticle( url, articleOBJ, callback ) {
-	
+
 	if(articleOBJ.thumbUrl && articleOBJ.thumbUrl.length>0)
 		{
 			// check if thumb image is valid ( i.e. gets 200 status response )
@@ -834,8 +743,8 @@ function downloadArticle( url, articleOBJ, callback ) {
 						console.log("Dropping image: " + articleOBJ.thumbUrl);
 						articleOBJ.thumbUrl = "";
 					}
-						
-						
+
+
 					console.log('POSTing article: "' + articleOBJ.title + " > " + url );
 					var articleJSON = JSON.stringify(articleOBJ);
 					functions.httpRequest('POST',url,articleJSON,function(s)
@@ -847,10 +756,10 @@ function downloadArticle( url, articleOBJ, callback ) {
 							} catch(e) {
 								console.log("Unable to process: " + articleOBJ.title);
 							}
-							
+
 							if(callback)
 								callback(article)
-		
+
 						}
 					);
 				}
@@ -869,7 +778,7 @@ function downloadArticle( url, articleOBJ, callback ) {
 					} catch(e) {
 						console.log("Unable to process: " + articleOBJ.title);
 					}
-					
+
 					if(callback)
 						callback(article)
 

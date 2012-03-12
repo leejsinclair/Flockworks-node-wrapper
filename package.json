@@ -1,7 +1,7 @@
 {
     "name": "flockworks"
   , "description": "Node.js wrapper for flockworks"
-  , "version": "0.1.1"
+  , "version": "0.1.2"
   , "author": "Lee Sinclair <lee@kudosknowledge.com>"
   , "license" : "BSD"
   , "keywords": ["semantic engine", "flockworks", "api"]
