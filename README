@@ -1,0 +1,46 @@
+# node.jswrapper for the flockworks API #
+Requires flockworks web service (API registrations allowed soon)
+
+## What is flockworks? ##
+
+Social Intelligence in Semantic Space
+
+Flockworks is a powerful artificial intelligence technology that is able to analyse written language to extract deep relationships and meaning. It is used by the content discovery service Enliten, (which has its own API).
+
+Vast quantities of English language from public sources (such as the entire English Wikipedia) were statistically analysed, producing a detailed database which can be used to assign any word, sentence, or document a position in a many-dimensional “Semantic Space”.
+
+Semantic Space has the extraordinary property that things that are close by each other in that space will also be close in meaning.  Thus it is possible to find documents that are about similar topics by looking at an area within Semantic Space, in much the same way that books kept together in a public library will be related.
+
+The Flockworks API provides RESTful methods for accessing your own Semantic Space; for storing objects within it, querying it, and for creating layers of category and relevance by overlaying tags and ratings. This enables developers to create software that clusters, auto-categorises, auto-rates, auto-tags, performs semantic searches, and generally brings data alive.
+
+If you’re familiar with AJAX and JSON, it’s incredibly easy to use. We’ll have you cruising through Semantic Space in no time!
+
+
+## The node.js wrapper for flockworks ##
+
+Methods:
+   	agent.
+        signUp                          :       Sets the domain, that this module will use to access the flockworks API
+        signIn                          :       Sign in using email and password
+        update                          :       Update user profile
+        auth                            :       Authenticate using: twitter | facebook | linkedin | google 
+        getUserProfile                  :       Get user details as JSON
+        password.
+        reset                           :       Request password reset
+
+        channel.
+           list                         :       Get list of channels owned by user
+           preview                      :       Get privew of articles across all channels owned by agent/user
+           content                      :       Get channel content
+           new                          :       Save new channel
+           update                       :       Update channel details
+           clone                        :       Clone an existing channel in to a specific users profile
+           vote                         :   Vote on a specific content item
+ 
+        updatePrivateFeeds              :       Request update of agent/users private feeds (e.g. twitter/facebook )
+ 
+   feed.
+        post                            :       Post new content to a specific feed
+
+   app.
+        signin                          :       Sign in using application auth details, in order to act on behalf of a user
